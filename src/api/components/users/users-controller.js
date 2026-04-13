@@ -147,12 +147,12 @@ async function updateUser(request, response, next) {
 
 async function changePassword(request, response, next) {
   // TODO: Implement this function
-  // const id = request.params.id;
-  // const {
-  //   old_password: oldPassword,
-  //   new_password: newPassword,
-  //   confirm_new_password: confirmNewPassword,
-  // } = request.body;
+  const id = request.params.id;
+  const {
+     old_password: oldPassword,
+     new_password: newPassword,
+     confirm_new_password: confirmNewPassword,
+  } = request.body;
   //
   // Make sure that:
   // - the user exists by checking the user ID
@@ -161,6 +161,15 @@ async function changePassword(request, response, next) {
   // - the new password is different from the old password
   // - the new password and confirm new password match
   //
+  const user = await usersService.getUser(request.params.id);
+  if (!user) {
+  throw errorResponder(errorTypes.UNPROCESSABLE_ENTITY, 'User not found');
+  }
+
+  const match = await passwordMatched(oldPassword, user.password);
+  if (!match) {
+    throw errorResponder(errorTypes.UNPROCESSABLE_ENTITY, 'User not found');
+  }
   // Note that the password is hashed in the database, so you need to
   // compare the hashed password with the old password. Use the passwordMatched
   // function from src/utils/password.js to compare the old password with the
