@@ -18,6 +18,5 @@ module.exports = (mongoose) => {
     },
   });
 
-  // Nama model harus 'Gacha' agar nanti bisa dipanggil lewat dbExports.Gacha
   return mongoose.model('Gacha', gachaSchema);
 };
