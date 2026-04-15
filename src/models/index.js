@@ -4,21 +4,9 @@ const mongoose = require('mongoose');
 
 const config = require('../core/config');
 const logger = require('../core/logger')('app');
-
-// Join the database connection string
-const connectionString = new URL(config.database.connection);
-connectionString.pathname += config.database.name;
-
-mongoose.connect(`${connectionString.toString()}`);
-
-const db = mongoose.connection;
-db.once('open', () => {
-  logger.info('Successfully connected to MongoDB');
-});
+const seedPrizes = require('../utils/seeds/prizes-seeds');
 
 const dbExports = {};
-dbExports.db = db;
-
 const basename = path.basename(__filename);
 
 fs.readdirSync(__dirname)
@@ -27,9 +15,27 @@ fs.readdirSync(__dirname)
       file.indexOf('.') !== 0 && file !== basename && file.slice(-3) === '.js'
   )
   .forEach((file) => {
-    // eslint-disable-next-line import/no-dynamic-require, global-require
     const model = require(path.join(__dirname, file))(mongoose);
     dbExports[model.modelName] = model;
   });
 
+const dbUri = `${config.database.connection}/${config.database.name}`;
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(dbUri);
+    logger.info(
+      `Successfully connected to MongoDB: ${mongoose.connection.name}`
+    );
+
+    await seedPrizes();
+    logger.info('Prize database has been initialized');
+  } catch (error) {
+    logger.error('Failed to connect or seed: ' + error.message);
+  }
+};
+
+connectDB();
+
+dbExports.db = mongoose.connection;
 module.exports = dbExports;

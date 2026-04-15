@@ -1,23 +1,29 @@
 const gachaRepository = require('./gacha-repository');
+const models = require('../../../models');
 
-const PRIZES = [
-  { name: 'Emas 10 gram', kuota: 1, weight: 1 },
-  { name: 'Smartphone X', kuota: 5, weight: 5 },
-  { name: 'Smartwatch Y', kuota: 10, weight: 10 },
-  { name: 'Voucher Rp100.000', kuota: 100, weight: 30 },
-  { name: 'Pulsa Rp50.000', kuota: 500, weight: 50 },
-];
+function maskName(name) {
+  if (!name) return name;
+  const parts = name.split(' ');
+  return parts
+    .map((word) => {
+      if (word.length <= 2) return word;
+      let result = word[0];
+      for (let i = 1; i < word.length - 1; i++) {
+        result += '*';
+      }
+      result += word[word.length - 1];
+      return result;
+    })
+    .join(' ');
+}
 
-// random hadiah berdasarkan weight (versi simpel)
 function getRandomPrize(prizes) {
   let totalWeight = 0;
-
   for (let i = 0; i < prizes.length; i++) {
     totalWeight += prizes[i].weight;
   }
 
   let random = Math.random() * totalWeight;
-
   for (let i = 0; i < prizes.length; i++) {
     random -= prizes[i].weight;
     if (random <= 0) {
@@ -26,51 +32,25 @@ function getRandomPrize(prizes) {
   }
 }
 
-// masking nama (biar sesuai soal)
-function maskName(name) {
-  if (!name) return name;
-
-  const parts = name.split(' ');
-
-  return parts
-    .map((word) => {
-      if (word.length <= 2) return word;
-
-      let result = word[0];
-      for (let i = 1; i < word.length - 1; i++) {
-        result += '*';
-      }
-      result += word[word.length - 1];
-
-      return result;
-    })
-    .join(' ');
-}
-
 async function rollGacha(userId) {
   const gachaCount = await gachaRepository.countUserGachaToday(userId);
-
-  // limit 5x per hari
   if (gachaCount >= 5) {
     throw new Error('LIMIT_EXCEEDED');
   }
 
-  // ambil jumlah pemenang tiap hadiah
+  const allPrizes = await models.Prize.find();
   const availablePrizes = [];
 
-  for (let i = 0; i < PRIZES.length; i++) {
-    const prize = PRIZES[i];
+  for (let i = 0; i < allPrizes.length; i++) {
+    const prize = allPrizes[i];
     const winners = await gachaRepository.countPrizeWinners(prize.name);
 
     if (winners < prize.kuota) {
       availablePrizes.push(prize);
     }
   }
-
-  // kalau semua hadiah habis
   if (availablePrizes.length === 0) {
     await gachaRepository.createGachaLog(userId, 'Zonk', false);
-
     return {
       win: false,
       prize: 'Zonk',
@@ -78,7 +58,6 @@ async function rollGacha(userId) {
     };
   }
 
-  // peluang menang
   const isWinningRoll = Math.random() < 0.5;
 
   if (!isWinningRoll) {
@@ -86,7 +65,6 @@ async function rollGacha(userId) {
     return { win: false, prize: 'Zonk' };
   }
 
-  // ambil hadiah pakai weight
   const prize = getRandomPrize(availablePrizes);
 
   await gachaRepository.createGachaLog(userId, prize.name, true);
@@ -97,15 +75,18 @@ async function rollGacha(userId) {
   };
 }
 
+// [BONUS POINT 1] Get History Gacha
 async function getHistory(userId) {
   return gachaRepository.getUserHistory(userId);
 }
 
+// [BONUS POINT 2] Get Prize Status & Sisa Kuota
 async function getPrizeStatus() {
   const status = [];
+  const allPrizes = await models.Prize.find();
 
-  for (let i = 0; i < PRIZES.length; i++) {
-    const prize = PRIZES[i];
+  for (let i = 0; i < allPrizes.length; i++) {
+    const prize = allPrizes[i];
     const winners = await gachaRepository.countPrizeWinners(prize.name);
 
     status.push({
@@ -119,12 +100,13 @@ async function getPrizeStatus() {
   return status;
 }
 
+// [BONUS POINT 3] List Pemenang dengan nama disamarkan (Masked)
 async function getWinnerList() {
   const logs = await gachaRepository.getAllGachaLogs();
 
   return logs.map((log) => ({
     prize: log.prizeName,
-    winner: maskName(log.userId),
+    winner: maskName(log.userId), // Memanggil fungsi masking
   }));
 }
 
